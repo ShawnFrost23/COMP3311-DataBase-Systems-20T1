@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+
+import sqlite3,sys
+
+if len(sys.argv) != 2:
+  print("Usage:",sys.argv[0],"Actor Name")
+  sys.exit(1)
+
+actorName = sys.argv[1]
+actorName = actorName.lower()
+
+con = sqlite3.connect('a2.db')
+
+cur = con.cursor()
+
+query = "SELECT mov.title, dir.name, mov.year, mov.content_rating, rat.imdb_score " \
+        "FROM movie mov " \
+        "INNER JOIN director dir on dir.id=mov.director_id " \
+        "INNER JOIN acting ac on ac.movie_id=mov.id " \
+        "INNER JOIN actor act on act.id=ac.actor_id " \
+        "INNER JOIN rating rat on rat.movie_id=mov.id " \
+        "WHERE lower(act.name)= '{}' ORDER BY mov.year, mov.title"
+
+cur.execute(query.format(actorName))
+
+num = 1
+noneYearMovieList = []
+while True:
+  t = cur.fetchone()
+  if t == None:
+    break
+  movieTitle, dirName, movieYear, movieCon, movieRat = t
+  if dirName != None and movieYear != None:
+    print('{}. {} -- {} ({}, {}, {:.1f})'.format(num, movieTitle, dirName, movieYear, movieCon, movieRat))
+    num = num + 1
+  elif dirName == None and movieYear != None:
+    print('{}. {} -- ({}, {}, {:.1f})'.format(num, movieTitle, movieYear, movieCon, movieRat))
+    num = num + 1
+  elif movieYear == None:
+    noneYearMovieList.append(t)
+
+i = 0
+listLen = len(noneYearMovieList)
+while i < listLen:
+  movieTitle, dirName, movieYear, movieCon, movieRat = noneYearMovieList[i]
+  if dirName != None:
+    print('{}. {} -- {} ({}, {}, {:.1f})'.format(num, movieTitle, dirName, movieYear, movieCon, movieRat))
+  elif dirName == None:
+    print('{}. {} -- ({}, {}, {:.1f})'.format(num, movieTitle, movieYear, movieCon, movieRat))
+  num += 1
+
+
+
+
+  
+
+

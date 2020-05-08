@@ -1,0 +1,86 @@
+#!/usr/bin/python3
+
+import sqlite3,sys
+
+if len(sys.argv) != 3:
+  print("Usage:",sys.argv[0],"title numberOfRecomendations")
+  sys.exit(1)
+
+movieTitle = sys.argv[1]
+movieTitle = movieTitle.lower()
+numberOfRecomendations = sys.argv[2]
+
+con = sqlite3.connect('a2.db')
+
+cur = con.cursor()
+
+queryToGetMovieID = "SELECT movie.id from movie " \
+                    "WHERE lower(movie.title)='{}'"
+
+cur.execute(queryToGetMovieID.format(movieTitle))
+
+t = cur.fetchone()
+if t == None:
+  print("Enter a valid movie name")
+  sys.exit(1)
+
+movieId = t[0]
+
+queryToGetMovieGenre = "SELECT count(*) " \
+                       "FROM (SELECT gen.movie_id, count(movGen.genre) as totalGen " \
+                       "FROM genre gen " \
+                       "LEFT JOIN (SELECT * FROM genre WHERE movie_id = {}) as movGen using(genre) " \
+                       "GROUP BY gen.movie_id " \
+                       "HAVING gen.movie_id != {} " \
+                       "ORDER BY totalGen DESC) " \
+                       "WHERE totalGen > 0"
+
+cur.execute(queryToGetMovieGenre.format(movieId, movieId))
+
+t = cur.fetchone()
+if t == None:
+  sys.exit(1)
+
+numMatchingGen = t[0]
+if numMatchingGen == 0:
+  sys.exit(1)
+
+queryFinal = "SELECT mov1.title, mov1.year, totalGen, totalKeyWords, rat.imdb_score, rat.num_voted_users " \
+             "FROM movie mov1 " \
+             "LEFT JOIN " \
+             "(SELECT gen1.movie_id, count(totalGen.genre) as totalGen " \
+             "FROM genre gen1 " \
+             "LEFT JOIN " \
+             "(SELECT * FROM genre WHERE movie_id = {}) as totalGen " \
+             "using(genre) GROUP BY gen1.movie_id " \
+             "HAVING gen1.movie_id != {}) " \
+             "gen2 on mov1.id = gen2.movie_id " \
+             "LEFT JOIN " \
+             "(SELECT id, count(case totalGen.keyword when null then 0 else totalGen.keyword end) as totalKeyWords " \
+             "FROM (SELECT mov1.id, keyW.keyword FROM movie mov1 LEFT JOIN keyword keyW on mov1.id = keyW.movie_id) as mov2 " \
+             "LEFT JOIN (SELECT * FROM keyword WHERE movie_id = {}) as totalGen " \
+             "using(keyword) " \
+             "GROUP BY mov2.id " \
+             "ORDER BY totalKeyWords DESC) " \
+             "mov3 on mov1.id = mov3.id " \
+             "LEFT JOIN (SELECT movie_id, imdb_score, num_voted_users " \
+             "FROM rating GROUP BY movie_id) " \
+             "rat on mov1.id = rat.movie_id " \
+             "GROUP BY mov1.title " \
+             "ORDER BY totalGen DESC, totalKeyWords DESC, imdb_score DESC, num_voted_users DESC " \
+             "LIMIT {}"
+
+
+cur.execute(queryFinal.format(movieId, movieId, movieId, numberOfRecomendations))
+
+num = 1
+while True:
+  t = cur.fetchone()
+  if t == None:
+    break
+  movTitle, movYear, totalGen, totalKeyWords, movRat, movVot = t
+  if movYear != None:
+    print('{}. {} ({}) [{}, {}, {:.1f}, {}]'.format(num, movTitle, movYear, totalGen, totalKeyWords, movRat, movVot))
+  elif movYear == None:
+    print('{}. {} [{}, {}, {:.1f}, {}]'.format(num, movTitle, totalGen, totalKeyWords, movRat, movVot))
+  num += 1

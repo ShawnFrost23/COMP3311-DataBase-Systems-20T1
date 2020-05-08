@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+
+import sqlite3,sys
+
+if len(sys.argv) < 4 or len(sys.argv) > 5:
+  print("Usage:",sys.argv[0],"K StartYear EndYear")
+  print("or")
+  print(sys.argv[0],"Genres K StartYear EndYear")
+  sys.exit(1)
+
+if len(sys.argv) == 5:
+  genres = sys.argv[1]
+  numTopMovies = sys.argv[2]
+  startYear = sys.argv[3]
+  endYear = sys.argv[4]
+  genreSplitList = genres.split('&')
+  numGenres = len(genreSplitList)
+  genreSplitList = str(genreSplitList)[1:-1]
+  genreSplitList = genreSplitList.lower()
+  genreSplitList = ('({})').format(genreSplitList)
+
+  con = sqlite3.connect('a2.db')
+
+  cur = con.cursor()
+
+  queryWithGen = "SELECT mov.title, group_concat(gen.genre), mov.Year, mov.content_rating, mov.lang, rat.imdb_score, rat.num_voted_users " \
+                 "FROM movie mov " \
+                 "INNER JOIN rating rat on rat.movie_id=mov.id " \
+                 "INNER JOIN genre gen on gen.movie_id=mov.id " \
+                 "WHERE mov.year >= {} AND mov.year <= {} and lower(gen.genre) IN" + genreSplitList + " " \
+                 "GROUP BY mov.title, mov.year, mov.content_rating, mov.lang, rat.imdb_score, rat.num_voted_users " \
+                 "HAVING count(gen.genre) >= {} " \
+                 "ORDER BY rat.imdb_score DESC, rat.num_voted_users DESC LIMIT {}"
+
+  cur.execute(queryWithGen.format(startYear, endYear, numGenres, numTopMovies))
+
+  num = 1
+  while True:
+    t = cur.fetchone()
+    if t == None:
+      break
+    movTitle, movGenres, movYear, movCon, movLang, movRat, movVot = t
+    if movCon != None:
+      print('{}. {} ({}, {}, {}) [{:.1f}, {}]'.format(num, movTitle, movYear, movCon, movLang, movRat, movVot))
+    elif movCon == None:
+      print('{}. {} ({}, {}) [{:.1f}, {}]'.format(num, movTitle, movYear, movLang, movRat, movVot))
+    num += 1
+elif len(sys.argv) == 4:
+  numTopMovies = sys.argv[1]
+  startYear = sys.argv[2]
+  endYear = sys.argv[3]
+
+  con = sqlite3.connect('a2.db')
+
+  cur = con.cursor()
+
+  queryNoGen = "Select mov.title, mov.year, mov.content_rating, mov.lang, rat.imdb_score, rat.num_voted_users " \
+               "FROM movie mov " \
+               "INNER JOIN rating rat on rat.movie_id=mov.id " \
+               "WHERE mov.year >= {} AND mov.year <= {} " \
+               "ORDER BY rat.imdb_score DESC, rat.num_voted_users DESC LIMIT {}"
+  
+  cur.execute(queryNoGen.format(startYear, endYear, numTopMovies))
+
+  num = 1
+  while True:
+    t = cur.fetchone()
+    if t == None:
+      break
+    movTitle, movYear, movCon, movLang, movRat, movVot = t
+    if movCon != None:
+      print('{}. {} ({}, {}, {}) [{:.1f}, {}]'.format(num, movTitle, movYear, movCon, movLang, movRat, movVot))
+    elif movCon == None:
+      print('{}. {} ({}, {}) [{:.1f}, {}]'.format(num, movTitle, movYear, movLang, movRat, movVot))
+    num += 1
+ 
